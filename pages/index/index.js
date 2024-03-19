@@ -1,5 +1,6 @@
 import mqtt from '../../utils/mqtt/mqtt.min.js';
 import QQMapWX from '../../utils/map/qqmap-wx-jssdk.min.js';
+import {wgs_gcj_encrypts} from '../../utils/map/translate.js';
 
 //连接的服务器域名，注意格式！！！ 867959033013358
 const host = 'wxs://aligenie.xuhong.com/mqtt';
@@ -11,6 +12,7 @@ var qqmapsdk;
 // 微信 腾讯地图开发文档：https://developers.weixin.qq.com/miniprogram/dev/component/map.html
 Page({
   data: {
+    qqmapKey: 'GARBZ-PQ4EW-6CUR6-OJJWY-2APKQ-HEFFK',
     deviceIMEI:'',
     hiddenmodalput: true,
     client: null,
@@ -28,13 +30,13 @@ Page({
       connectTimeout: 30 * 1000, //1000毫秒，两次重新连接之间的间隔
       resubscribe: true //如果连接断开并重新连接，则会再次自动订阅已订阅的主题（默认true）
     },
-    latitude: 23.099994,
-    longitude: 113.324520,
+    latitude: 39.11428542,//116.397428,//23.099994,
+    longitude: 116.8234023,//39.90923,//113.324520,
     markers: [{
       iconPath: '../resource/location.png',
       id: 0,
-      latitude: 23.099994,
-      longitude: 113.324520,
+      latitude: 39.11428542,//116.397428,//23.099994,
+      longitude: 116.8234023,//39.90923,//113.324520,
       width: 50,
       height: 50,
       callout: {
@@ -133,11 +135,9 @@ Page({
         }
       })
     } else {
-      wx.showToast({
-        title: '请先连接服务器',
-        icon: 'none',
-        duration: 2000
-      })
+      wx.showToast({ title: '请先连接服务器', icon: 'none', duration: 2000 });
+      //this.translate(39.12, 116.83);//39.12,116.83;30.21,115.43
+      this.getLocation();
     }
   },
   onClickRefresh: function ()  {
@@ -219,9 +219,62 @@ Page({
 
     // 实例化API核心类
     qqmapsdk = new QQMapWX({
-      key: 'GARBZ-PQ4EW-6CUR6-OJJWY-2APKQ-HEFFK'
+      key: this.data.qqmapKey
     });
 
+  },
+  getLocation() {
+    var that = this;
+    wx.getLocation({
+      type: 'wgs84', //gcj02
+        success: (res) => {
+          const oldPoints = [
+            {lat: res.latitude, lng: res.longitude},
+           ];
+          let newPoints = [];
+          //天地图所用的坐标系是CGCS2000坐标系，GPS用的wgs84坐标系，GCJ02转换为cgcs2000
+          for (const item of wgs_gcj_encrypts(oldPoints)) {
+            //newPoints.push(new AMap.LngLat(item.lng, item.lat));
+            newPoints.push(item);
+          }
+
+          console.log("old:", JSON.stringify(oldPoints));
+          console.log("new:", JSON.stringify(newPoints[0]));
+
+          that.setData({
+            latitude: newPoints[0].lat,
+            longitude: newPoints[0].lng,
+            'markers[0].latitude': newPoints[0].lat,
+            'markers[0].longitude': newPoints[0].lng,
+          });
+          //that.data.markers[0].latitude = that.data.latitude = res.latitude;
+          //that.data.markers[0].longitude = that.data.longitude = res.longitude;
+
+          // 调用天地图逆地理编码api
+          //that.initTianDiMap(newPoints[0].lng, newPoints[0].lat);
+          that.initTianDiMap(res.longitude, res.latitude);
+        },
+        fail: (err) => {
+          console.log('err', err);
+        }
+     });
+  },
+  initTianDiMap(longitude, latitude) {
+    let that = this;
+    wx.request({
+        url: 'http://api.tianditu.gov.cn/geocoder', //逆地理编码接口地址
+        data: {
+            postStr: JSON.stringify({'lon':longitude,'lat':latitude,'ver':1}),
+            type: 'geocode',
+            tk: 'e4ea1d8fd7ab2144e2b96c712aed3691'
+        },  //逆地理编码接口参数
+        success: function (res) {
+            console.log(143, res.data);
+        },
+        fail: function (res) {
+            console.log(res.errMsg);
+        }
+    })
   },
   translate: function(latitude, longitude) {
     var that = this;
@@ -232,9 +285,10 @@ Page({
       data: { //发送给后台的数据
         locations: info,
         type: 1,
-        key: 'GARBZ-PQ4EW-6CUR6-OJJWY-2APKQ-HEFFK',
+        key: this.data.qqmapKey,
       },
       success: function(res) {
+        console.log("translate:", JSON.stringify(res));
         that.setData({
           latitude: res.data.locations[0].lat,
           longitude: res.data.locations[0].lng,
