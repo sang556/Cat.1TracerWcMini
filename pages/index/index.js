@@ -259,6 +259,18 @@ Page({
         }
      });
   },
+  //跳转到地图
+  openLocation(lat, lng, name, address) {
+    wx.openLocation({
+        // 经纬度 使用 gcj02 国测局坐标系
+        latitude: lat,
+        longitude: lng,
+        // 地址名
+        name: name,
+        address: address,
+        scale: 18
+    })
+  },
   initTianDiMap(longitude, latitude) {
     let that = this;
     wx.request({
@@ -270,6 +282,8 @@ Page({
         },  //逆地理编码接口参数
         success: function (res) {
             console.log(143, res.data);
+            const result = res.data.result;
+            that.openLocation(that.data.latitude, that.data.longitude, "", result.formatted_address);
         },
         fail: function (res) {
             console.log(res.errMsg);
